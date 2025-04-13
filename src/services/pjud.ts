@@ -94,17 +94,22 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
 
   try {
     const page = await browser.newPage();
-    logFn('Navigating to PJUD website...');
++   logFn('New page created.');
 
+    logFn('Navigating to PJUD website...');
     // Go to the PJUD website
     await page.goto('https://oficinajudicialvirtual.pjud.cl/indexN.php');
++   logFn('Navigated to PJUD website.');
     logFn('Entered PJUD website.');
-
++   
     // Enter "Consulta de Causas"
+    logFn('Selecting "Consulta de Causas"...');
     await page.select('select#id_tipo_busqueda', '1');
++   logFn('Selected "Consulta de Causas".');
     logFn('Entered "Consulta de Causas".');
 
     // Fill in the form with the provided parameters
+    logFn('Filling in the form...');
     await page.select('select#id_competencia', params.competencia);
     logFn(`Selected competencia: ${params.competencia}`);
     await page.select('select#id_corte', params.corte);
@@ -128,7 +133,9 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
     logFn('Search button clicked and navigation completed.');
 
     // Check if results are present
+    logFn('Checking if results are present...');
     const resultFound = await page.$('img[name="boton_consulta_causa"]');
+    logFn(`Result found: ${!!resultFound}`);
     if (!resultFound) {
       logFn('No results found for the given parameters.');
       return { history: [], unresolvedWritings: [] };
@@ -145,6 +152,7 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
     // Extract data from the "Historia" tab
     logFn('Extracting data from the "Historia" tab...');
     await page.waitForSelector('#tab_detalle_causa > ul > li:nth-child(2) > a');
+    logFn('Found Historia tab selector.');
     await page.click('#tab_detalle_causa > ul > li:nth-child(2) > a');
     logFn('Clicked on the "Historia" tab.');
 
@@ -184,8 +192,10 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
           georref: '',
           pdfUrl,
         });
-       logFn(`Extracted history entry: ${folio}, ${etapa}, ${tramite}, ${descTramite}, ${fecTramite}, ${foja}, ${pdfUrl}`);
+        logFn(`Extracted history entry: ${folio}, ${etapa}, ${tramite}, ${descTramite}, ${fecTramite}, ${foja}, ${pdfUrl}`);
         console.log({folio, etapa, tramite,descTramite,fecTramite,foja,pdfUrl})
+      } else {
++       logFn(`Row ${i} has ${cells.length} cells, skipping.`);
       }
     }
     logFn('Extracted data from the "Historia" tab.');
