@@ -1,4 +1,3 @@
-
 "use client";
 import {
   Card,
@@ -30,12 +29,12 @@ import { Download } from "lucide-react";
 import { Icons } from "@/components/icons";
 
 export default function Home() {
-  const [competencia, setCompetencia] = useState("");
-  const [corte, setCorte] = useState("");
-  const [tribunal, setTribunal] = useState("");
-  const [libroTipo, setLibroTipo] = useState("");
-  const [rol, setRol] = useState("");
-  const [ano, setAno] = useState("");
+  const [competencia, setCompetencia] = useState("Ordinario");
+  const [corte, setCorte] = useState("C. Apelaciones de Santiago");
+  const [tribunal, setTribunal] = useState("1° J. Civil Santiago");
+  const [libroTipo, setLibroTipo] = useState("C");
+  const [rol, setRol] = useState("1394");
+  const [ano, setAno] = useState("2015");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [unresolvedWritings, setUnresolvedWritings] = useState<
     UnresolvedWriting[]
