@@ -86,7 +86,7 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
   }
   // Launch the browser using a proxy
    const browser = await (puppeteerBase as any).launch({
-     headless: "new", // set to false to see the browser
+     headless: false, // set to false to see the browser
      ignoreDefaultArgs: ['--mute-audio'],
      args: [
        '--no-sandbox',
@@ -99,7 +99,6 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
     const page = await browser.newPage();
     if (puppeteerExtra && StealthPlugin) {
       await page.evaluateOnNewDocument((stealth) => {
-        // @ts-ignore
           stealth().enabled = true
         }, (StealthPlugin as any)().stealth);
     }
@@ -121,14 +120,20 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
     logFn('Form loaded.');
 
       // Populate the form with the provided parameters
-      logFn(`Populating form with parameters: ${JSON.stringify(params)}`);
-      await page.select('select[name="competencia"]', params.competencia);
-      await page.select('select[name="corte"]', params.corte);
-      await page.select('select[name="tribunal"]', params.tribunal);
-      await page.select('select[name="libroTipo"]', params.libroTipo);
-      await page.type('input[name="rol"]', params.rol);
-      await page.type('input[name="anio"]', params.ano);
-      logFn('Form populated.');
+       logFn(`Populating form with parameters: ${JSON.stringify(params)}`);
+       await page.select('select[name="competencia"]', params.competencia);
+       logFn(`Selected competencia: ${params.competencia}`);
+       await page.select('select[name="corte"]', params.corte);
+        logFn(`Selected corte: ${params.corte}`);
+       await page.select('select[name="tribunal"]', params.tribunal);
+        logFn(`Selected tribunal: ${params.tribunal}`);
+       await page.select('select[name="libroTipo"]', params.libroTipo);
+        logFn(`Selected libroTipo: ${params.libroTipo}`);
+       await page.type('input[name="rol"]', params.rol);
+        logFn(`Typed rol: ${params.rol}`);
+       await page.type('input[name="anio"]', params.ano);
+       logFn(`Typed ano: ${params.ano}`);
+       logFn('Form populated.');
 
     // Submit the form
     logFn('Submitting the form...');
@@ -141,11 +146,13 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
     logFn('Results loaded.');
 
     // Check if results are present
+    logFn('Checking if results are present...');
     const resultFound = await page.$('img[name="boton_consulta_causa"]');
     if (!resultFound) {
       logFn('No results found for the given parameters.');
       return { history: [], unresolvedWritings: [] };
     }
+    logFn('Results found.');
 
     // Click on the magnifying glass icon
     logFn('Clicking on the magnifying glass icon...');
@@ -174,6 +181,7 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
 
     for (let i = 0; i < Math.min(historyTableRows.length, 3); i++) {
       const rowData = historyTableRows[i];
+        logFn(`Processing history row ${i + 1}: ${JSON.stringify(rowData)}`);
       if (rowData.length >= 10) {
         const folio = rowData[0];
         const etapa = rowData[3];
@@ -184,9 +192,11 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
         //const georref = rowData[8];
 
         // Extract PDF URL from the row
+          logFn(`Extracting PDF URL from row ${i + 1}...`);
         const pdfUrl = await page.$eval(`#tablaHistoria tbody tr:nth-child(${i + 1}) td:nth-child(2) a`, (a: any) => {
           return a.href;
         });
+          logFn(`PDF URL extracted: ${pdfUrl}`);
 
         history.push({
           folio,
@@ -201,8 +211,10 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
           pdfUrl,
         });
         logFn(`Extracted history entry: ${folio}, ${etapa}, ${tramite}, ${descTramite}, ${fecTramite}, ${foja}, ${pdfUrl}`);
-+        console.log({folio, etapa, tramite,descTramite,fecTramite,foja,pdfUrl})
-       }
+        console.log({folio, etapa, tramite,descTramite,fecTramite,foja,pdfUrl})
+       } else {
+            logFn(`Skipping row ${i + 1} due to insufficient data.`);
+        }
      }
      logFn('Extracted data from the "Historia" tab.');
 
