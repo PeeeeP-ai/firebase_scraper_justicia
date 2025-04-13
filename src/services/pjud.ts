@@ -1,9 +1,12 @@
+'use client';
 
 /**
  * @file Service for scraping data from the PJUD website.
  */
 
-import puppeteer from 'puppeteer-extra';
+import puppeteerBase from 'puppeteer';
+import puppeteerExtra from 'puppeteer-extra';
+const puppeteer = puppeteerExtra.use(StealthPlugin());
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import {ProxyList} from 'rotating-proxy-list';
 
@@ -122,14 +125,14 @@ export interface PjudData {
  */
 export async function getPjudData(params: CourtCaseParameters): Promise<PjudData> {
   // Start the browser with stealth plugin
-  puppeteer.use(StealthPlugin());
+  //puppeteer.use(StealthPlugin());
 
   const proxyList = new ProxyList({
     sources: ['http://pubproxy.com/api/proxy?limit=5&format=txt&port=8080'], // this can be an array of URLs
   });
 
   // Launch the browser using a proxy
-  const browser = await puppeteer.launch({
+  const browser = await puppeteerBase.launch({
     headless: "new", // set to false to see the browser
     args: [
       '--no-sandbox',
