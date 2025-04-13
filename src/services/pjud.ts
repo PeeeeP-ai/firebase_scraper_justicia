@@ -4,118 +4,60 @@
  * @file Service for scraping data from the PJUD website.
  */
 
-import puppeteerBase from 'puppeteer';
-import puppeteerExtra from 'puppeteer-extra';
-const puppeteer = puppeteerExtra.use(StealthPlugin());
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import {ProxyList} from 'rotating-proxy-list';
-
-/**
- * Represents a court case parameter.
- */
 export interface CourtCaseParameters {
-  /**
-   * The Competencia of the court case.
-   */
-  competencia: string;
-  /**
-   * The Corte of the court case.
-   */
-  corte: string;
-  /**
-   * The Tribunal of the court case.
-   */
-  tribunal: string;
-  /**
-   * The Libro/Tipo of the court case.
-   */
-  libroTipo: string;
-  /**
-   * The Rol of the court case.
-   */
-  rol: string;
-  /**
-   * The Año of the court case.
-   */
-  ano: string;
+    competencia: string;
+    corte: string;
+    tribunal: string;
+    libroTipo: string;
+    rol: string;
+    ano: string;
 }
 
-/**
- * Represents a history entry from the PJUD website.
- */
 export interface HistoryEntry {
-  /**
-   * The Folio of the entry.
-   */
-  folio: string;
-  /**
-   * The Doc of the entry.
-   */
-  doc: string;
-  /**
-   * The Anexo of the entry.
-   */
-  anexo: string;
-  /**
-   * The Etapa of the entry.
-   */
-  etapa: string;
-  /**
-   * The Tramite of the entry.
-   */
-  tramite: string;
-  /**
-   * The Desc. Tramite of the entry.
-   */
-  descTramite: string;
-  /**
-   * The Fec. Tramite of the entry.
-   */
-  fecTramite: string;
-  /**
-   * The Foja of the entry.
-   */
-  foja: string;
-  /**
-   * The Georref of the entry.
-   */
-  georref: string;
-  /**
-   * The URL of the PDF document associated with the entry.
-   */
-  pdfUrl: string;
+    folio: string;
+    doc: string;
+    anexo: string;
+    etapa: string;
+    tramite: string;
+    descTramite: string;
+    fecTramite: string;
+    foja: string;
+    georref: string;
+    pdfUrl: string;
 }
 
-/**
- * Represents an unresolved writing from the PJUD website.
- */
 export interface UnresolvedWriting {
-  /**
-   * The content of the unresolved writing.
-   */
-  content: string;
+    content: string;
 }
 
-/**
- * Represents the data scraped from the PJUD website.
- */
 export interface PjudData {
-  /**
-   * The history entries from the PJUD website.
-   */
-  history: HistoryEntry[];
-  /**
-   * The unresolved writings from the PJUD website.
-   */
-  unresolvedWritings: UnresolvedWriting[];
+    history: HistoryEntry[];
+    unresolvedWritings: UnresolvedWriting[];
 }
 
-/**
- * Retrieves proxies from a URL and checks if the URL returns proxies in the expected format.
- * @param url The URL to fetch proxies from.
- * @returns A promise that resolves to an array of proxy strings.
- */
+import { useToast } from "@/hooks/use-toast"
 
+let puppeteerBase: any;
+let puppeteerExtra: any;
+let StealthPlugin: any;
+let ProxyList: any;
+
+if (typeof window === 'undefined') {
+  try {
+    puppeteerBase = require('puppeteer');
+    puppeteerExtra = require('puppeteer-extra');
+    StealthPlugin = require('puppeteer-extra-plugin-stealth');
+    ProxyList = require('rotating-proxy-list').ProxyList;
+  } catch (error) {
+    console.error('Failed to load puppeteer modules:', error);
+    // Handle the error appropriately, e.g., set a flag or use a fallback
+  }
+}
+
+let puppeteer: any;
+if (puppeteerExtra && StealthPlugin) {
+  puppeteer = puppeteerExtra.use(StealthPlugin());
+}
 
 /**
  * Asynchronously retrieves data from the PJUD website.
@@ -124,16 +66,24 @@ export interface PjudData {
  * @returns A promise that resolves to a PjudData object containing the scraped data.
  */
 export async function getPjudData(params: CourtCaseParameters): Promise<PjudData> {
+  if (typeof window !== 'undefined') {
+    console.warn('Puppeteer cannot be run in the browser environment.');
+    return { history: [], unresolvedWritings: [] };
+  }
+
+  const { toast } = useToast()
+
   // Start the browser with stealth plugin
   //puppeteer.use(StealthPlugin());
 
-  const proxyList = new ProxyList({
+  const proxyList = new (ProxyList as any)({
     sources: ['http://pubproxy.com/api/proxy?limit=5&format=txt&port=8080'], // this can be an array of URLs
   });
 
   // Launch the browser using a proxy
-  const browser = await puppeteerBase.launch({
+  const browser = await (puppeteerBase as any).launch({
     headless: "new", // set to false to see the browser
+    ignoreDefaultArgs: ['--mute-audio'],
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -230,7 +180,13 @@ export async function getPjudData(params: CourtCaseParameters): Promise<PjudData
 
   } catch (error: any) {
     console.error('Scraping failed:', error);
-    throw new Error(error.message || 'Failed to scrape data from PJUD website');
+    toast({
+        title: "Scraping failed",
+        description: error.message || 'Failed to scrape data from PJUD website',
+        variant: "destructive"
+      })
+    return { history: [], unresolvedWritings: [] };
+    //throw new Error(error.message || 'Failed to scrape data from PJUD website');
   } finally {
     await browser.close();
   }

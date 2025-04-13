@@ -27,6 +27,7 @@ import {
 import { useState, useEffect } from "react";
 import { Download } from "lucide-react";
 import { Icons } from "@/components/icons";
+import { Toaster } from "@/components/ui/toaster"
 
 export default function Home() {
   const [competencia, setCompetencia] = useState("Ordinario");
@@ -76,6 +77,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col items-center justify-start min-h-screen py-4 bg-background">
+      <Toaster />
       <Card className="w-full max-w-2xl p-4 bg-card">
         <CardHeader>
           <CardTitle>PJUD Case Scraper</CardTitle>
