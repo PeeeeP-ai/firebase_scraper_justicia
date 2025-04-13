@@ -46,17 +46,22 @@ if (typeof window === 'undefined') {
   try {
     puppeteerBase = require('puppeteer');
     puppeteerExtra = require('puppeteer-extra');
-    StealthPlugin = require('puppeteer-extra-plugin-stealth');
+    StealthPlugin = require('puppeteer-extra-plugin-stealth')();
     try{ProxyList = require('rotating-proxy-list').ProxyList;} catch(e){}
+      logFn('Puppeteer modules loaded successfully.');
   } catch (error) {
-    console.error('Failed to load puppeteer modules:', error);
-    // Handle the error appropriately, e.g., set a flag or use a fallback
+    console.error('Error loading puppeteer modules:', error);
+      logFn('Error loading puppeteer modules: ' + error);
+    throw new Error('Failed to load puppeteer modules: ' + error);
   }
 }
 
 let puppeteer: any;
-// Initialize puppeteer with stealth plugin only when available
-if (puppeteerExtra && StealthPlugin) {
+
+if (!puppeteerBase || !puppeteerExtra || !StealthPlugin) {
+  throw new Error('One or more Puppeteer modules failed to load.');
+}
+
   //puppeteer = puppeteerExtra.use(StealthPlugin());
 }
 
@@ -68,13 +73,18 @@ if (puppeteerExtra && StealthPlugin) {
  * @returns A promise that resolves to a PjudData object containing the scraped data.
  */
 export async function getPjudData(params: CourtCaseParameters, logFn: (log: string) => void): Promise<PjudData> {
+    logFn('Starting getPjudData with params: ' + JSON.stringify(params));
+
   if (typeof window !== 'undefined') {
     console.warn('Puppeteer cannot be run in the browser environment.');
+    logFn('Puppeteer cannot be run in the browser environment.');
     return { history: [], unresolvedWritings: [] };
-  }
+  }else{logFn('typeof window === undefined');}
+
+  puppeteer = puppeteerExtra.use(StealthPlugin());
 
   const { toast } = useToast()
-
+  
   // Start the browser with stealth plugin
   //puppeteer.use(StealthPlugin());
 
@@ -84,24 +94,26 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
       sources: ['http://pubproxy.com/api/proxy?limit=5&format=txt&port=8080'], // this can be an array of URLs
     });
   }
-  // Launch the browser using a proxy
-   const browser = await (puppeteerBase as any).launch({
-     headless: false, // set to false to see the browser
-     ignoreDefaultArgs: ['--mute-audio'],
-     args: [
-       '--no-sandbox',
-       '--disable-setuid-sandbox',
-       //`--proxy-server=${proxy}`,
-     ],
+    logFn('Launching browser...');
+    let browser: any;
+    try {
+        // Launch the browser using a proxy
+        browser = await puppeteer.launch({
+            headless: false, // set to false to see the browser
+            ignoreDefaultArgs: ['--mute-audio'],
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                //`--proxy-server=${proxy}`,
+            ],
+        });
    });
 
   try {
+    logFn('Creating new page...');
     const page = await browser.newPage();
-    if (puppeteerExtra && StealthPlugin) {
-      await page.evaluateOnNewDocument((stealth) => {
-          stealth().enabled = true
-        }, (StealthPlugin as any)().stealth);
-    }
+   
+
    logFn('New page created.');
 
     logFn('Navigating to PJUD website...');
@@ -244,9 +256,12 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
     }
 
   } catch (error: any) {
+      console.log(error)
     logFn(`Scraping failed: ${error}`);
-    console.error('Scraping failed:', error);
-     toast({
+    console.error('Scraping failed with error:', error);
+    console.error('Scraping failed stack:', error.stack);
+    logFn(`Scraping failed error stack: ${error.stack}`);
+    toast({
          title: "Scraping failed",
          description: error.message,
        })

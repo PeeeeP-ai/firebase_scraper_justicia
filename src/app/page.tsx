@@ -76,6 +76,7 @@ export default function Home() {
       setLogs((prevLogs) => prevLogs + `\nData retrieval successful.`);
     } catch (e: any) {
       setError(e.message || "An error occurred");
+      console.log(e)
       setLogs((prevLogs) => prevLogs + `\nError: ${e.message || "An error occurred"}`);
     } finally {
       setLoading(false);
