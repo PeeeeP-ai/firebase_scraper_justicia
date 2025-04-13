@@ -47,7 +47,7 @@ if (typeof window === 'undefined') {
     puppeteerBase = require('puppeteer');
     puppeteerExtra = require('puppeteer-extra');
     StealthPlugin = require('puppeteer-extra-plugin-stealth');
-    ProxyList = require('rotating-proxy-list').ProxyList;
+    try{ProxyList = require('rotating-proxy-list').ProxyList;} catch(e){}
   } catch (error) {
     console.error('Failed to load puppeteer modules:', error);
     // Handle the error appropriately, e.g., set a flag or use a fallback
@@ -77,10 +77,12 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
   // Start the browser with stealth plugin
   //puppeteer.use(StealthPlugin());
 
-  const proxyList = new (ProxyList as any)({
-    sources: ['http://pubproxy.com/api/proxy?limit=5&format=txt&port=8080'], // this can be an array of URLs
-  });
-
+  let proxyList:any = null;
+  if(ProxyList){
+    proxyList = new (ProxyList as any)({
+      sources: ['http://pubproxy.com/api/proxy?limit=5&format=txt&port=8080'], // this can be an array of URLs
+    });
+  }
   // Launch the browser using a proxy
   const browser = await (puppeteerBase as any).launch({
     headless: "new", // set to false to see the browser
