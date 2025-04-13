@@ -1,3 +1,12 @@
+
+/**
+ * @file Service for scraping data from the PJUD website.
+ */
+
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import {ProxyList} from 'rotating-proxy-list';
+
 /**
  * Represents a court case parameter.
  */
@@ -99,53 +108,127 @@ export interface PjudData {
 }
 
 /**
+ * Retrieves proxies from a URL and checks if the URL returns proxies in the expected format.
+ * @param url The URL to fetch proxies from.
+ * @returns A promise that resolves to an array of proxy strings.
+ */
+
+
+/**
  * Asynchronously retrieves data from the PJUD website.
  *
  * @param params The court case parameters to use to query the PJUD website.
  * @returns A promise that resolves to a PjudData object containing the scraped data.
  */
 export async function getPjudData(params: CourtCaseParameters): Promise<PjudData> {
-  // TODO: Implement this by calling the PJUD website.
+  // Start the browser with stealth plugin
+  puppeteer.use(StealthPlugin());
 
-  return {
-    history: [
-      {
-        folio: '17',
-        doc: '',
-        anexo: '',
-        etapa: 'Terminada',
-        tramite: 'Resolución',
-        descTramite: 'Archivo del expediente en el Tribunal',
-        fecTramite: '03/07/2023',
-        foja: '2',
-        georref: '',
-        pdfUrl: 'https://example.com/pdf1.pdf',
-      },
-      {
-        folio: '16',
-        doc: '',
-        anexo: '',
-        etapa: 'Excepciones',
-        tramite: '(CER)Certificacion',
-        descTramite: 'Certifica que no se opuso excepciones',
-        fecTramite: '04/07/2022',
-        foja: '12',
-        georref: '',
-        pdfUrl: 'https://example.com/pdf2.pdf',
-      },
-      {
-        folio: '15',
-        doc: '',
-        anexo: '',
-        etapa: 'Excepciones',
-        tramite: 'Resolución',
-        descTramite: 'Mero trámite',
-        fecTramite: '04/07/2022',
-        foja: '11',
-        georref: '',
-        pdfUrl: 'https://example.com/pdf3.pdf',
-      },
+  const proxyList = new ProxyList({
+    sources: ['http://pubproxy.com/api/proxy?limit=5&format=txt&port=8080'], // this can be an array of URLs
+  });
+
+  // Launch the browser using a proxy
+  const browser = await puppeteer.launch({
+    headless: "new", // set to false to see the browser
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      //`--proxy-server=${proxy}`,
     ],
-    unresolvedWritings: [],
-  };
+  });
+
+  try {
+    const page = await browser.newPage();
+
+    // Go to the PJUD website
+    await page.goto('https://oficinajudicialvirtual.pjud.cl/indexN.php');
+
+    // Enter "Consulta de Causas"
+    await page.select('select#id_tipo_busqueda', '1');
+
+    // Fill in the form with the provided parameters
+    await page.select('select#id_competencia', params.competencia);
+    await page.select('select#id_corte', params.corte);
+    await page.select('select#id_tribunal', params.tribunal);
+    await page.select('select#id_libro', params.libroTipo);
+    await page.type('input#rol_numero', params.rol);
+    await page.type('input#rol_anio', params.ano);
+
+    // Click the search button
+    await Promise.all([
+      page.click('input[name="Buscar"]'),
+      page.waitForNavigation({ waitUntil: 'networkidle0' }),
+    ]);
+
+    // Click on the magnifying glass icon of the result
+    await Promise.all([
+      page.click('img[name="boton_consulta_causa"]'),
+      page.waitForNavigation({ waitUntil: 'networkidle0' }),
+    ]);
+
+    // Extract data from the "Historia" tab
+    await page.waitForSelector('#tab_detalle_causa > ul > li:nth-child(2) > a');
+    await page.click('#tab_detalle_causa > ul > li:nth-child(2) > a');
+
+    // Extract the last 3 entries from the "Historia" tab
+    const historyEntries: HistoryEntry[] = [];
+    const historyTableRows = await page.$$('table#tabla_historial > tbody > tr');
+
+    for (let i = Math.max(0, historyTableRows.length - 3); i < historyTableRows.length; i++) {
+      const row = historyTableRows[i];
+      const cells = await row.$$('td');
+
+      if (cells.length === 9) {
+        const folio = await cells[0].evaluate(node => node.textContent?.trim() || '');
+        const etapa = await cells[3].evaluate(node => node.textContent?.trim() || '');
+        const tramite = await cells[4].evaluate(node => node.textContent?.trim() || '');
+        const descTramite = await cells[5].evaluate(node => node.textContent?.trim() || '');
+        const fecTramite = await cells[6].evaluate(node => node.textContent?.trim() || '');
+        const foja = await cells[7].evaluate(node => node.textContent?.trim() || '');
+
+        // Extract the PDF URL from the last cell
+        let pdfUrl = '';
+        const downloadLink = await cells[8].$('a');
+        if (downloadLink) {
+          pdfUrl = await downloadLink.evaluate(node => (node as HTMLAnchorElement).href || '');
+        }
+
+        historyEntries.push({
+          folio,
+          doc: '',
+          anexo: '',
+          etapa,
+          tramite,
+          descTramite,
+          fecTramite,
+          foja,
+          georref: '',
+          pdfUrl,
+        });
+      }
+    }
+
+    // Extract data from the "Escritos por Resolver" tab
+    await page.waitForSelector('#tab_detalle_causa > ul > li:nth-child(3) > a');
+    await page.click('#tab_detalle_causa > ul > li:nth-child(3) > a');
+
+    const unresolvedWritings: UnresolvedWriting[] = [];
+    // check if the element exists
+    const element = await page.$('#contenedor_escritos_resolver > div > p');
+    if (element) {
+      const text = await element.evaluate(node => node.textContent?.trim() || '');
+      unresolvedWritings.push({ content: text });
+    }
+    return {
+      history: historyEntries,
+      unresolvedWritings: unresolvedWritings,
+    };
+
+  } catch (error: any) {
+    console.error('Scraping failed:', error);
+    throw new Error(error.message || 'Failed to scrape data from PJUD website');
+  } finally {
+    await browser.close();
+  }
 }
