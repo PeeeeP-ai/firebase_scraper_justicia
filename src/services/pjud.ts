@@ -55,8 +55,9 @@ if (typeof window === 'undefined') {
 }
 
 let puppeteer: any;
+// Initialize puppeteer with stealth plugin only when available
 if (puppeteerExtra && StealthPlugin) {
-  puppeteer = puppeteerExtra.use(StealthPlugin());
+  //puppeteer = puppeteerExtra.use(StealthPlugin());
 }
 
 /**
@@ -84,105 +85,110 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
     });
   }
   // Launch the browser using a proxy
-  const browser = await (puppeteerBase as any).launch({
-    headless: "new", // set to false to see the browser
-    ignoreDefaultArgs: ['--mute-audio'],
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      //`--proxy-server=${proxy}`,
-    ],
-  });
+   const browser = await (puppeteerBase as any).launch({
+     headless: "new", // set to false to see the browser
+     ignoreDefaultArgs: ['--mute-audio'],
+     args: [
+       '--no-sandbox',
+       '--disable-setuid-sandbox',
+       //`--proxy-server=${proxy}`,
+     ],
+   });
 
   try {
     const page = await browser.newPage();
-+   logFn('New page created.');
+    if (puppeteerExtra && StealthPlugin) {
+      await page.evaluateOnNewDocument((stealth) => {
+        // @ts-ignore
+          stealth().enabled = true
+        }, (StealthPlugin as any)().stealth);
+    }
+   logFn('New page created.');
 
     logFn('Navigating to PJUD website...');
     // Go to the PJUD website
-    await page.goto('https://oficinajudicialvirtual.pjud.cl/indexN.php');
-+   logFn('Navigated to PJUD website.');
-    logFn('Entered PJUD website.');
-+   
-    // Enter "Consulta de Causas"
-    logFn('Selecting "Consulta de Causas"...');
-    await page.select('select#id_tipo_busqueda', '1');
-+   logFn('Selected "Consulta de Causas".');
-    logFn('Entered "Consulta de Causas".');
+    await page.goto('https://oficinajudicialvirtual.pjud.cl/indexN.php', { waitUntil: 'domcontentloaded' });
+    logFn('Navigated to PJUD website.');
 
-    // Fill in the form with the provided parameters
-    logFn('Filling in the form...');
-    await page.select('select#id_competencia', params.competencia);
-    logFn(`Selected competencia: ${params.competencia}`);
-    await page.select('select#id_corte', params.corte);
-    logFn(`Selected corte: ${params.corte}`);
-    await page.select('select#id_tribunal', params.tribunal);
-    logFn(`Selected tribunal: ${params.tribunal}`);
-    await page.select('select#id_libro', params.libroTipo);
-    logFn(`Selected libroTipo: ${params.libroTipo}`);
-    await page.type('input#rol_numero', params.rol);
-    logFn(`Typed rol: ${params.rol}`);
-    await page.type('input#rol_anio', params.ano);
-    logFn(`Typed ano: ${params.ano}`);
-    logFn('Filled in the form with the provided parameters.');
+    // Click on "Consulta de Causas"
+    logFn('Clicking on "Consulta de Causas"...');
+    await page.click('a[href="consultaCausa.php"]');
+    logFn('Clicked on "Consulta de Causas".');
 
-    // Click the search button
-    logFn('Clicking the search button...');
-    await Promise.all([
-      page.click('input[name="Buscar"]'),
-      page.waitForNavigation({ waitUntil: 'networkidle0' }),
-    ]);
-    logFn('Search button clicked and navigation completed.');
+    // Wait for the form to load
+    logFn('Waiting for the form to load...');
+    await page.waitForSelector('select[name="competencia"]');
+    logFn('Form loaded.');
+
+      // Populate the form with the provided parameters
+      logFn(`Populating form with parameters: ${JSON.stringify(params)}`);
+      await page.select('select[name="competencia"]', params.competencia);
+      await page.select('select[name="corte"]', params.corte);
+      await page.select('select[name="tribunal"]', params.tribunal);
+      await page.select('select[name="libroTipo"]', params.libroTipo);
+      await page.type('input[name="rol"]', params.rol);
+      await page.type('input[name="anio"]', params.ano);
+      logFn('Form populated.');
+
+    // Submit the form
+    logFn('Submitting the form...');
+    await page.click('input[name="Buscar"]');
+    logFn('Form submitted.');
+
+    // Wait for the results to load
+    logFn('Waiting for the results to load...');
+    await page.waitForSelector('img[name="boton_consulta_causa"]', { timeout: 5000 });
+    logFn('Results loaded.');
 
     // Check if results are present
-    logFn('Checking if results are present...');
     const resultFound = await page.$('img[name="boton_consulta_causa"]');
-    logFn(`Result found: ${!!resultFound}`);
     if (!resultFound) {
       logFn('No results found for the given parameters.');
       return { history: [], unresolvedWritings: [] };
     }
 
-    // Click on the magnifying glass icon of the result
+    // Click on the magnifying glass icon
     logFn('Clicking on the magnifying glass icon...');
-    await Promise.all([
-      page.click('img[name="boton_consulta_causa"]'),
-      page.waitForNavigation({ waitUntil: 'networkidle0' }),
-    ]);
-    logFn('Magnifying glass icon clicked and navigation completed.');
+    await page.click('img[name="boton_consulta_causa"]');
+    logFn('Magnifying glass icon clicked.');
+
+    // Wait for the case details to load
+    logFn('Waiting for case details to load...');
+    await page.waitForSelector('a[href="#tab-historia"]', { timeout: 5000 });
+    logFn('Case details loaded.');
+
+    // Go to the "Historia" tab
+    logFn('Navigating to the "Historia" tab...');
+    await page.click('a[href="#tab-historia"]');
+    logFn('Navigated to the "Historia" tab.');
 
     // Extract data from the "Historia" tab
     logFn('Extracting data from the "Historia" tab...');
-    await page.waitForSelector('#tab_detalle_causa > ul > li:nth-child(2) > a');
-    logFn('Found Historia tab selector.');
-    await page.click('#tab_detalle_causa > ul > li:nth-child(2) > a');
-    logFn('Clicked on the "Historia" tab.');
+    const history: HistoryEntry[] = [];
+    const historyTableRows = await page.$$eval('#tablaHistoria tbody tr', (rows) => {
+      return rows.map(row => {
+        const cells = Array.from(row.querySelectorAll('td'));
+        return cells.map(cell => cell.textContent?.trim() || '');
+      });
+    });
 
-    // Extract the last 3 entries from the "Historia" tab
-    const historyEntries: HistoryEntry[] = [];
-    const historyTableRows = await page.$$('table#tabla_historial > tbody > tr');
-    logFn(`Found ${historyTableRows.length} rows in the history table.`);
+    for (let i = 0; i < Math.min(historyTableRows.length, 3); i++) {
+      const rowData = historyTableRows[i];
+      if (rowData.length >= 10) {
+        const folio = rowData[0];
+        const etapa = rowData[3];
+        const tramite = rowData[4];
+        const descTramite = rowData[5];
+        const fecTramite = rowData[6];
+        const foja = rowData[7];
+        //const georref = rowData[8];
 
-    for (let i = Math.max(0, historyTableRows.length - 3); i < historyTableRows.length; i++) {
-      const row = historyTableRows[i];
-      const cells = await row.$$('td');
+        // Extract PDF URL from the row
+        const pdfUrl = await page.$eval(`#tablaHistoria tbody tr:nth-child(${i + 1}) td:nth-child(2) a`, (a: any) => {
+          return a.href;
+        });
 
-      if (cells.length === 9) {
-        const folio = await cells[0].evaluate(node => node.textContent?.trim() || '');
-        const etapa = await cells[3].evaluate(node => node.textContent?.trim() || '');
-        const tramite = await cells[4].evaluate(node => node.textContent?.trim() || '');
-        const descTramite = await cells[5].evaluate(node => node.textContent?.trim() || '');
-        const fecTramite = await cells[6].evaluate(node => node.textContent?.trim() || '');
-        const foja = await cells[7].evaluate(node => node.textContent?.trim() || '');
-
-        // Extract the PDF URL from the last cell
-        let pdfUrl = '';
-        const downloadLink = await cells[8].$('a');
-        if (downloadLink) {
-          pdfUrl = await downloadLink.evaluate(node => (node as HTMLAnchorElement).href || '');
-        }
-
-        historyEntries.push({
+        history.push({
           folio,
           doc: '',
           anexo: '',
@@ -195,48 +201,45 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
           pdfUrl,
         });
         logFn(`Extracted history entry: ${folio}, ${etapa}, ${tramite}, ${descTramite}, ${fecTramite}, ${foja}, ${pdfUrl}`);
-        console.log({folio, etapa, tramite,descTramite,fecTramite,foja,pdfUrl})
-      } else {
-+       logFn(`Row ${i} has ${cells.length} cells, skipping.`);
-      }
++        console.log({folio, etapa, tramite,descTramite,fecTramite,foja,pdfUrl})
+       }
+     }
+     logFn('Extracted data from the "Historia" tab.');
+
+    // Extract data from the "Escritos por Resolver" tab (if available)
+    logFn('Checking for "Escritos por Resolver" tab...');
+    const escritosTab = await page.$('a[href="#tab-escritos"]');
+    if (escritosTab) {
+      logFn('Navigating to the "Escritos por Resolver" tab...');
+      await page.click('a[href="#tab-escritos"]');
+      logFn('Navigated to the "Escritos por Resolver" tab.');
+
+      logFn('Extracting data from the "Escritos por Resolver" tab...');
+      const unresolvedWritings: UnresolvedWriting[] = await page.$$eval('#tablaEscritosPorResolver tbody tr td', (cells) => {
+        return Array.from(cells).map(cell => ({ content: cell.textContent?.trim() || '' }));
+      });
+      logFn(`Extracted ${unresolvedWritings.length} unresolved writings.`);
+
+      await browser.close();
+      logFn('Browser closed.');
+      return { history, unresolvedWritings };
+    } else {
+      logFn('No "Escritos por Resolver" tab found.');
+      
+      await browser.close();
+      logFn('Browser closed.');
+      return { history, unresolvedWritings: [] };
     }
-    logFn('Extracted data from the "Historia" tab.');
-
-    // Extract data from the "Escritos por Resolver" tab
-    logFn('Extracting data from the "Escritos por Resolver" tab...');
-    await page.waitForSelector('#tab_detalle_causa > ul > li:nth-child(3) > a');
-    await page.click('#tab_detalle_causa > ul > li:nth-child(3) > a');
-    logFn('Clicked on the "Escritos por Resolver" tab.');
-
-    const unresolvedWritings: UnresolvedWriting[] = [];
-    // check if the element exists
-    const element = await page.$('#contenedor_escritos_resolver > div > p');
-    if (element) {
-      const text = await element.evaluate(node => node.textContent?.trim() || '');
-      unresolvedWritings.push({ content: text });
-      logFn(`Extracted unresolved writing: ${text}`);
-    }
-    logFn('Extracted data from the "Escritos por Resolver" tab.');
-
-    return {
-      history: historyEntries,
-      unresolvedWritings: unresolvedWritings,
-    };
 
   } catch (error: any) {
     logFn(`Scraping failed: ${error}`);
     console.error('Scraping failed:', error);
-    toast({
-        title: "Scraping failed",
-        description: error.message || 'Failed to scrape data from PJUD website',
-        variant: "destructive"
-      })
-    logFn(`Scraping failed: ${error.message || 'Failed to scrape data from PJUD website'}`);
-    return { history: [], unresolvedWritings: [] };
-    //throw new Error(error.message || 'Failed to scrape data from PJUD website');
-  } finally {
+     toast({
+         title: "Scraping failed",
+         description: error.message,
+       })
     await browser.close();
-    logFn('Browser closed.');
+    logFn('Browser closed due to error.');
+    return { history: [], unresolvedWritings: [] };
   }
 }
-
