@@ -45,7 +45,7 @@
     "lucide-react": "^0.475.0",
     "next": "15.2.3",
     "patch-package": "^8.0.0",
-    "puppeteer": "*",
+    "puppeteer": "^24.6.1",
     "puppeteer-extra": "*",
     "puppeteer-extra-plugin-stealth": "*",
     "react": "^18.3.1",
