@@ -63,9 +63,10 @@ if (puppeteerExtra && StealthPlugin) {
  * Asynchronously retrieves data from the PJUD website.
  *
  * @param params The court case parameters to use to query the PJUD website.
+ * @param logFn A function to output logs during the scraping process.
  * @returns A promise that resolves to a PjudData object containing the scraped data.
  */
-export async function getPjudData(params: CourtCaseParameters): Promise<PjudData> {
+export async function getPjudData(params: CourtCaseParameters, logFn: (log: string) => void): Promise<PjudData> {
   if (typeof window !== 'undefined') {
     console.warn('Puppeteer cannot be run in the browser environment.');
     return { history: [], unresolvedWritings: [] };
@@ -93,12 +94,15 @@ export async function getPjudData(params: CourtCaseParameters): Promise<PjudData
 
   try {
     const page = await browser.newPage();
+    logFn('Navigating to PJUD website...');
 
     // Go to the PJUD website
     await page.goto('https://oficinajudicialvirtual.pjud.cl/indexN.php');
+    logFn('Entered PJUD website.');
 
     // Enter "Consulta de Causas"
     await page.select('select#id_tipo_busqueda', '1');
+    logFn('Entered "Consulta de Causas".');
 
     // Fill in the form with the provided parameters
     await page.select('select#id_competencia', params.competencia);
@@ -107,26 +111,34 @@ export async function getPjudData(params: CourtCaseParameters): Promise<PjudData
     await page.select('select#id_libro', params.libroTipo);
     await page.type('input#rol_numero', params.rol);
     await page.type('input#rol_anio', params.ano);
+    logFn('Filled in the form with the provided parameters.');
 
     // Click the search button
+    logFn('Clicking the search button...');
     await Promise.all([
       page.click('input[name="Buscar"]'),
       page.waitForNavigation({ waitUntil: 'networkidle0' }),
     ]);
+    logFn('Search button clicked and navigation completed.');
 
     // Click on the magnifying glass icon of the result
+    logFn('Clicking on the magnifying glass icon...');
     await Promise.all([
       page.click('img[name="boton_consulta_causa"]'),
       page.waitForNavigation({ waitUntil: 'networkidle0' }),
     ]);
+    logFn('Magnifying glass icon clicked and navigation completed.');
 
     // Extract data from the "Historia" tab
+    logFn('Extracting data from the "Historia" tab...');
     await page.waitForSelector('#tab_detalle_causa > ul > li:nth-child(2) > a');
     await page.click('#tab_detalle_causa > ul > li:nth-child(2) > a');
+    logFn('Clicked on the "Historia" tab.');
 
     // Extract the last 3 entries from the "Historia" tab
     const historyEntries: HistoryEntry[] = [];
     const historyTableRows = await page.$$('table#tabla_historial > tbody > tr');
+    logFn(`Found ${historyTableRows.length} rows in the history table.`);
 
     for (let i = Math.max(0, historyTableRows.length - 3); i < historyTableRows.length; i++) {
       const row = historyTableRows[i];
@@ -159,12 +171,16 @@ export async function getPjudData(params: CourtCaseParameters): Promise<PjudData
           georref: '',
           pdfUrl,
         });
+        logFn(`Extracted history entry: ${folio}, ${etapa}, ${tramite}, ${descTramite}, ${fecTramite}, ${foja}, ${pdfUrl}`);
       }
     }
+    logFn('Extracted data from the "Historia" tab.');
 
     // Extract data from the "Escritos por Resolver" tab
+    logFn('Extracting data from the "Escritos por Resolver" tab...');
     await page.waitForSelector('#tab_detalle_causa > ul > li:nth-child(3) > a');
     await page.click('#tab_detalle_causa > ul > li:nth-child(3) > a');
+    logFn('Clicked on the "Escritos por Resolver" tab.');
 
     const unresolvedWritings: UnresolvedWriting[] = [];
     // check if the element exists
@@ -172,7 +188,10 @@ export async function getPjudData(params: CourtCaseParameters): Promise<PjudData
     if (element) {
       const text = await element.evaluate(node => node.textContent?.trim() || '');
       unresolvedWritings.push({ content: text });
+      logFn(`Extracted unresolved writing: ${text}`);
     }
+    logFn('Extracted data from the "Escritos por Resolver" tab.');
+
     return {
       history: historyEntries,
       unresolvedWritings: unresolvedWritings,
@@ -185,9 +204,11 @@ export async function getPjudData(params: CourtCaseParameters): Promise<PjudData
         description: error.message || 'Failed to scrape data from PJUD website',
         variant: "destructive"
       })
+    logFn(`Scraping failed: ${error.message || 'Failed to scrape data from PJUD website'}`);
     return { history: [], unresolvedWritings: [] };
     //throw new Error(error.message || 'Failed to scrape data from PJUD website');
   } finally {
     await browser.close();
+    logFn('Browser closed.');
   }
 }

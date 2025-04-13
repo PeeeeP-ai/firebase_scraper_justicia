@@ -25,9 +25,10 @@ import {
   UnresolvedWriting,
 } from "@/services/pjud";
 import { useState, useEffect } from "react";
-import { Download } from "lucide-react";
+import { Download, Copy } from "lucide-react";
 import { Icons } from "@/components/icons";
 import { Toaster } from "@/components/ui/toaster"
+import { Textarea } from "@/components/ui/textarea"
 
 export default function Home() {
   const [competencia, setCompetencia] = useState("Ordinario");
@@ -42,6 +43,7 @@ export default function Home() {
   >([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [logs, setLogs] = useState<string>("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -56,6 +58,7 @@ export default function Home() {
   const handleSubmit = async () => {
     setLoading(true);
     setError(null);
+    setLogs((prevLogs) => prevLogs + `\nSubmitting with parameters: ${JSON.stringify({ competencia, corte, tribunal, libroTipo, rol, ano })}`);
     try {
       const params: CourtCaseParameters = {
         competencia,
@@ -65,14 +68,23 @@ export default function Home() {
         rol,
         ano,
       };
-      const data = await getPjudData(params);
+      const data = await getPjudData(params, (log) => {
+        setLogs((prevLogs) => prevLogs + `\n${log}`);
+      });
       setHistory(data.history);
       setUnresolvedWritings(data.unresolvedWritings);
+      setLogs((prevLogs) => prevLogs + `\nData retrieval successful.`);
     } catch (e: any) {
       setError(e.message || "An error occurred");
+      setLogs((prevLogs) => prevLogs + `\nError: ${e.message || "An error occurred"}`);
     } finally {
       setLoading(false);
+      setLogs((prevLogs) => prevLogs + `\nSubmission completed.`);
     }
+  };
+
+  const copyLogsToClipboard = () => {
+    navigator.clipboard.writeText(logs);
   };
 
   return (
@@ -207,6 +219,26 @@ export default function Home() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="w-full max-w-4xl mt-8 bg-card">
+        <CardHeader>
+          <CardTitle>Logs</CardTitle>
+          <CardDescription>
+            Debugging information.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <Textarea
+            value={logs}
+            readOnly
+            className="min-h-[100px] font-mono text-xs"
+          />
+          <Button onClick={copyLogsToClipboard} disabled={logs.length === 0}>
+            <Copy className="mr-2 h-4 w-4" />
+            Copy Logs
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
