@@ -35,6 +35,7 @@ export interface PjudData {
     unresolvedWritings: UnresolvedWriting[];
 }
 
+
 import { useToast } from "@/hooks/use-toast"
 
 let puppeteerBase: any;
@@ -48,6 +49,7 @@ if (typeof window === 'undefined') {
     puppeteerExtra = require('puppeteer-extra');
     StealthPlugin = require('puppeteer-extra-plugin-stealth')();
     try{ProxyList = require('rotating-proxy-list').ProxyList;} catch(e){}
+
       logFn('Puppeteer modules loaded successfully.');
   } catch (error) {
     console.error('Error loading puppeteer modules:', error);
@@ -62,8 +64,7 @@ if (!puppeteerBase || !puppeteerExtra || !StealthPlugin) {
   throw new Error('One or more Puppeteer modules failed to load.');
 }
 
-  //puppeteer = puppeteerExtra.use(StealthPlugin());
-}
+puppeteer = puppeteerExtra.use(StealthPlugin());
 
 /**
  * Asynchronously retrieves data from the PJUD website.
@@ -72,7 +73,8 @@ if (!puppeteerBase || !puppeteerExtra || !StealthPlugin) {
  * @param logFn A function to output logs during the scraping process.
  * @returns A promise that resolves to a PjudData object containing the scraped data.
  */
-export async function getPjudData(params: CourtCaseParameters, logFn: (log: string) => void): Promise<PjudData> {
+export async function getPjudData(params: CourtCaseParameters, logFn: (log: string) => void): Promise<PjudData> { 
+  logFn('getPjudData function called.');
     logFn('Starting getPjudData with params: ' + JSON.stringify(params));
 
   if (typeof window !== 'undefined') {
@@ -80,8 +82,6 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
     logFn('Puppeteer cannot be run in the browser environment.');
     return { history: [], unresolvedWritings: [] };
   }else{logFn('typeof window === undefined');}
-
-  puppeteer = puppeteerExtra.use(StealthPlugin());
 
   const { toast } = useToast()
   
@@ -94,10 +94,13 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
       sources: ['http://pubproxy.com/api/proxy?limit=5&format=txt&port=8080'], // this can be an array of URLs
     });
   }
+  
     logFn('Launching browser...');
+    logFn('About to launch the browser.');
     let browser: any;
     try {
         // Launch the browser using a proxy
+        
         browser = await puppeteer.launch({
             headless: false, // set to false to see the browser
             ignoreDefaultArgs: ['--mute-audio'],
@@ -107,7 +110,7 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
                 //`--proxy-server=${proxy}`,
             ],
         });
-   });
+        logFn('Browser launched.');
 
   try {
     logFn('Creating new page...');
