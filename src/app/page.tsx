@@ -31,12 +31,12 @@ import { Toaster } from "@/components/ui/toaster"
 import { Textarea } from "@/components/ui/textarea"
 
 export default function Home() {
-  const [competencia, setCompetencia] = useState("Ordinario");
-  const [corte, setCorte] = useState("C. Apelaciones de Santiago");
-  const [tribunal, setTribunal] = useState("1° J. Civil Santiago");
+  const [competencia, setCompetencia] = useState("Civil");
+  const [corte, setCorte] = useState("C.A. de Santiago");
+  const [tribunal, setTribunal] = useState("5° Juzgado Civil de Santiago");
   const [libroTipo, setLibroTipo] = useState("C");
-  const [rol, setRol] = useState("1394");
-  const [ano, setAno] = useState("2015");
+  const [rol, setRol] = useState("2011");
+  const [ano, setAno] = useState("2022");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [unresolvedWritings, setUnresolvedWritings] = useState<
     UnresolvedWriting[]
