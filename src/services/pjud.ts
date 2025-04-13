@@ -106,11 +106,17 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
 
     // Fill in the form with the provided parameters
     await page.select('select#id_competencia', params.competencia);
+    logFn(`Selected competencia: ${params.competencia}`);
     await page.select('select#id_corte', params.corte);
+    logFn(`Selected corte: ${params.corte}`);
     await page.select('select#id_tribunal', params.tribunal);
+    logFn(`Selected tribunal: ${params.tribunal}`);
     await page.select('select#id_libro', params.libroTipo);
+    logFn(`Selected libroTipo: ${params.libroTipo}`);
     await page.type('input#rol_numero', params.rol);
+    logFn(`Typed rol: ${params.rol}`);
     await page.type('input#rol_anio', params.ano);
+    logFn(`Typed ano: ${params.ano}`);
     logFn('Filled in the form with the provided parameters.');
 
     // Click the search button
@@ -120,6 +126,13 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
       page.waitForNavigation({ waitUntil: 'networkidle0' }),
     ]);
     logFn('Search button clicked and navigation completed.');
+
+    // Check if results are present
+    const resultFound = await page.$('img[name="boton_consulta_causa"]');
+    if (!resultFound) {
+      logFn('No results found for the given parameters.');
+      return { history: [], unresolvedWritings: [] };
+    }
 
     // Click on the magnifying glass icon of the result
     logFn('Clicking on the magnifying glass icon...');
@@ -171,7 +184,8 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
           georref: '',
           pdfUrl,
         });
-        logFn(`Extracted history entry: ${folio}, ${etapa}, ${tramite}, ${descTramite}, ${fecTramite}, ${foja}, ${pdfUrl}`);
+       logFn(`Extracted history entry: ${folio}, ${etapa}, ${tramite}, ${descTramite}, ${fecTramite}, ${foja}, ${pdfUrl}`);
+        console.log({folio, etapa, tramite,descTramite,fecTramite,foja,pdfUrl})
       }
     }
     logFn('Extracted data from the "Historia" tab.');
@@ -198,6 +212,7 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
     };
 
   } catch (error: any) {
+    logFn(`Scraping failed: ${error}`);
     console.error('Scraping failed:', error);
     toast({
         title: "Scraping failed",
@@ -212,3 +227,4 @@ export async function getPjudData(params: CourtCaseParameters, logFn: (log: stri
     logFn('Browser closed.');
   }
 }
+
